@@ -1,0 +1,1237 @@
+# models.py
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+from enum import Enum
+
+
+class ProductStatus(str, Enum):
+    CREATED = "CREATED"
+    ON_MODERATION = "ON_MODERATION"
+    MODERATED = "MODERATED"
+    BLOCKED = "BLOCKED"
+
+
+class CartUnavailableReason(str, Enum):
+    OUT_OF_STOCK = "OUT_OF_STOCK"
+    PRODUCT_BLOCKED = "PRODUCT_BLOCKED"
+    PRODUCT_DELISTED = "PRODUCT_DELISTED"
+    SKU_DISABLED = "SKU_DISABLED"
+
+
+class CartValidationIssueType(str, Enum):
+    BLOCKED = "BLOCKED"
+    DELETED = "DELETED"
+    OUT_OF_STOCK = "OUT_OF_STOCK"
+    INSUFFICIENT_STOCK = "INSUFFICIENT_STOCK"
+    ON_MODERATION = "ON_MODERATION"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+
+
+class CartValidationSeverity(str, Enum):
+    CRITICAL = "critical"
+    WARNING = "warning"
+
+
+class BannerEventType(str, Enum):
+    IMPRESSION = "impression"
+    CLICK = "click"
+
+
+class NotificationType(str, Enum):
+    IN_STOCK = "IN_STOCK"
+    PRICE_DOWN = "PRICE_DOWN"
+
+
+@dataclass
+class Category:
+    id: str
+    name: str
+
+
+@dataclass
+class Image:
+    url: str
+    ordering: int
+
+
+@dataclass
+class Characteristic:
+    name: str
+    value: str
+
+
+@dataclass
+class SKU:
+    id: str
+    name: str
+    price: int  # в копейках
+    active_quantity: int
+    characteristics: List[Characteristic] = field(default_factory=list)
+
+
+@dataclass
+class Product:
+    id: str
+    title: str
+    description: str
+    status: ProductStatus
+    category: Category
+    images: List[Image]
+    characteristics: List[Characteristic]
+    skus: List[SKU]
+
+
+@dataclass
+class FavoriteItem:
+    product: Product
+    added_at: datetime
+
+
+@dataclass
+class FavoritesResponse:
+    items: List[FavoriteItem]
+    total: int
+
+
+@dataclass
+class FavoriteMutationResponse:
+    product_id: str
+    user_id: str
+    added_at: datetime
+    message: str
+
+
+@dataclass
+class SubscribeRequest:
+    notify_on: List[NotificationType]
+
+
+@dataclass
+class SubscriptionResponse:
+    id: str
+    product: Product
+    notify_on: List[NotificationType]
+    created_at: datetime
+
+
+@dataclass
+class CartItem:
+    item_id: str
+    sku_id: str
+    product_id: str
+    product_title: str
+    sku_name: str
+    unit_price: int
+    quantity: int
+    available_stock: int
+    line_total: int
+    available: bool
+    image_url: Optional[str] = None
+    unavailable_reason: Optional[CartUnavailableReason] = None
+
+
+@dataclass
+class CartSummary:
+    total_amount: int
+    total_items: int
+    total_quantity: int
+    available_items: int
+    has_unavailable_items: bool
+    checkout_ready: bool
+    currency: str = "RUB"
+
+
+@dataclass
+class CheckoutItem:
+    product_id: str
+    sku_id: str
+    quantity: int
+    unit_price: int
+    line_total: int
+
+
+@dataclass
+class CheckoutPayload:
+    items: List[CheckoutItem]
+    total_amount: int
+    currency: str
+
+
+@dataclass
+class CartResponse:
+    items: List[CartItem]
+    summary: CartSummary
+    checkout_payload: CheckoutPayload
+
+
+@dataclass
+class AddCartItemRequest:
+    sku_id: str
+    quantity: int
+
+
+@dataclass
+class UpdateCartItemRequest:
+    quantity: int
+
+
+@dataclass
+class CartMutationResponse:
+    message: str
+    item: CartItem
+    summary: CartSummary
+
+
+@dataclass
+class CartValidationIssueDetails:
+    product_id: Optional[int] = None
+    product_title: Optional[str] = None
+    sku_name: Optional[str] = None
+    requested_quantity: Optional[int] = None
+    available_quantity: Optional[int] = None
+    current_status: Optional[ProductStatus] = None
+    error: Optional[str] = None
+
+
+@dataclass
+class CartValidationIssue:
+    cart_item_id: str
+    sku_id: int
+    issue_type: CartValidationIssueType
+    severity: CartValidationSeverity
+    message: str
+    details: CartValidationIssueDetails
+
+
+@dataclass
+class CartValidationResponse:
+    is_valid: bool
+    can_checkout: bool
+    total_items: int
+    validation_timestamp: datetime
+    issues: List[CartValidationIssue]
+
+
+@dataclass
+class Banner:
+    id: str
+    title: str
+    image_url: str
+    link: str
+    priority: int
+
+
+@dataclass
+class BannerListResponse:
+    items: List[Banner]
+    total_count: int
+
+
+@dataclass
+class BannerEvent:
+    banner_id: str
+    event: BannerEventType
+    timestamp: datetime
+
+
+@dataclass
+class BannerEventsRequest:
+    events: List[BannerEvent]
+
+
+@dataclass
+class Collection:
+    id: str
+    title: str
+    cover_image_url: str
+    target_url: str
+    priority: int
+    start_date: str  # format: YYYY-MM-DD
+    description: Optional[str] = None
+
+
+@dataclass
+class CollectionsMetadata:
+    total_count: int
+    limit: int
+    offset: int
+
+
+@dataclass
+class CollectionsResponse:
+    metadata: CollectionsMetadata
+    collections: List[Collection]
+
+
+@dataclass
+class CollectionProductsResponse:
+    collection_title: str
+    total_products: int
+    items: List[Product]
+    unavailable_ids: List[int]
+
+
+@dataclass
+class AlsoBoughtResponse:
+    recommended_product_ids: List[str]
+
+
+@dataclass
+class SimilarProductsResponse:
+    items: List[Product]
+    total: int
+
+
+@dataclass
+class ErrorResponse:
+    code: str
+    message: str
+    details: Optional[Dict[str, Any]] = None
+
+
+# client.py
+import requests
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from urllib.parse import urljoin
+
+from models import (
+    FavoritesResponse, FavoriteMutationResponse, SubscribeRequest,
+    SubscriptionResponse, CartResponse, AddCartItemRequest,
+    UpdateCartItemRequest, CartMutationResponse, CartValidationResponse,
+    BannerListResponse, BannerEventsRequest, CollectionsResponse,
+    CollectionProductsResponse, AlsoBoughtResponse, SimilarProductsResponse,
+    ErrorResponse, NotificationType, BannerEventType
+)
+
+
+class NeoMarketAPI:
+    """
+    Клиент для NeoMarket B2C API (Корзина + Избранное + Главная)
+    
+    Документация API: OpenAPI спецификация от Interface Team
+    Версия: 0.1
+    """
+    
+    def __init__(self, base_url: str, token: Optional[str] = None):
+        """
+        Инициализация клиента API
+        
+        Args:
+            base_url: Базовый URL API (например, https://api.neomarket.ru)
+            token: JWT токен для авторизации (опционально)
+        """
+        self.base_url = base_url.rstrip('/')
+        self.session = requests.Session()
+        
+        if token:
+            self.session.headers.update({
+                'Authorization': f'Bearer {token}'
+            })
+    
+    def _make_url(self, path: str) -> str:
+        """Формирует полный URL для запроса"""
+        return urljoin(f"{self.base_url}/", path.lstrip('/'))
+    
+    def _handle_response(self, response: requests.Response, model_class=None):
+        """
+        Обрабатывает ответ от API
+        
+        Args:
+            response: Объект ответа requests
+            model_class: Класс модели для парсинга ответа (опционально)
+        
+        Returns:
+            Распарсенный ответ или None для 204 статуса
+        """
+        if response.status_code == 204:
+            return None
+        
+        if not response.ok:
+            error_data = response.json()
+            raise APIError(
+                code=error_data.get('code', 'UNKNOWN_ERROR'),
+                message=error_data.get('message', 'Unknown error'),
+                details=error_data.get('details'),
+                status_code=response.status_code
+            )
+        
+        if model_class and response.content:
+            data = response.json()
+            return self._parse_response(data, model_class)
+        
+        return response.json() if response.content else None
+    
+    def _parse_response(self, data: Dict[str, Any], model_class):
+        """Парсит JSON ответ в объект модели"""
+        # Здесь можно добавить более сложную логику парсинга
+        # Для простоты возвращаем как есть, в реальном проекте используйте dataclass-json
+        return data
+    
+    # ========== ИЗБРАННОЕ ==========
+    
+    def get_favorites(self, limit: int = 20, offset: int = 0) -> FavoritesResponse:
+        """
+        Получение списка избранных товаров
+        
+        Args:
+            limit: Максимальное количество элементов (1-100)
+            offset: Смещение для пагинации
+        
+        Returns:
+            FavoritesResponse: Список избранных товаров
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 503)
+        """
+        response = self.session.get(
+            self._make_url('/api/v1/favorites'),
+            params={'limit': limit, 'offset': offset}
+        )
+        return self._handle_response(response, FavoritesResponse)
+    
+    def add_to_favorites(self, product_id: str, user_id: str) -> FavoriteMutationResponse:
+        """
+        Добавление товара в избранное
+        
+        Args:
+            product_id: UUID товара
+            user_id: UUID пользователя
+        
+        Returns:
+            FavoriteMutationResponse: Результат добавления
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 404, 503)
+        """
+        response = self.session.post(
+            self._make_url(f'/api/v1/favorites/{product_id}'),
+            params={'user_id': user_id}
+        )
+        return self._handle_response(response, FavoriteMutationResponse)
+    
+    def remove_from_favorites(self, product_id: str, user_id: str) -> None:
+        """
+        Удаление товара из избранного
+        
+        Args:
+            product_id: UUID товара
+            user_id: UUID пользователя
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 404, 503)
+        """
+        response = self.session.delete(
+            self._make_url(f'/api/v1/favorites/{product_id}'),
+            params={'user_id': user_id}
+        )
+        self._handle_response(response)
+    
+    def subscribe_to_product(
+        self, 
+        product_id: str, 
+        notify_on: List[NotificationType]
+    ) -> SubscriptionResponse:
+        """
+        Подписка на уведомления о товаре
+        
+        Args:
+            product_id: UUID товара
+            notify_on: Список типов уведомлений
+        
+        Returns:
+            SubscriptionResponse: Информация о подписке
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 404, 409, 500, 503)
+        """
+        request = SubscribeRequest(notify_on=notify_on)
+        response = self.session.post(
+            self._make_url(f'/api/v1/favorites/{product_id}/subscribe'),
+            json={'notify_on': [n.value for n in notify_on]}
+        )
+        return self._handle_response(response, SubscriptionResponse)
+    
+    # ========== КОРЗИНА ==========
+    
+    def get_cart(
+        self, 
+        user_id: Optional[str] = None, 
+        session_id: Optional[str] = None
+    ) -> CartResponse:
+        """
+        Просмотр корзины с актуальными ценами
+        
+        Args:
+            user_id: UUID пользователя (для авторизованных)
+            session_id: ID гостевой сессии
+        
+        Returns:
+            CartResponse: Содержимое корзины
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 500, 503)
+        """
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        response = self.session.get(
+            self._make_url('/api/v1/cart'),
+            headers=headers
+        )
+        return self._handle_response(response, CartResponse)
+    
+    def clear_cart(
+        self,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> None:
+        """
+        Очистить корзину
+        
+        Args:
+            user_id: UUID пользователя (для авторизованных)
+            session_id: ID гостевой сессии
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 500)
+        """
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        response = self.session.delete(
+            self._make_url('/api/v1/cart'),
+            headers=headers
+        )
+        self._handle_response(response)
+    
+    def add_cart_item(
+        self,
+        sku_id: str,
+        quantity: int,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> CartMutationResponse:
+        """
+        Добавить товар в корзину
+        
+        Args:
+            sku_id: UUID SKU
+            quantity: Количество (минимум 1)
+            user_id: UUID пользователя (для авторизованных)
+            session_id: ID гостевой сессии
+        
+        Returns:
+            CartMutationResponse: Результат добавления
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 404, 410, 422, 500, 503)
+        """
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        request = AddCartItemRequest(sku_id=sku_id, quantity=quantity)
+        response = self.session.post(
+            self._make_url('/api/v1/cart/items'),
+            headers=headers,
+            json={'sku_id': sku_id, 'quantity': quantity}
+        )
+        return self._handle_response(response, CartMutationResponse)
+    
+    def get_cart_item(
+        self,
+        item_id: str,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> CartItem:
+        """
+        Получить позицию корзины по ID
+        
+        Args:
+            item_id: UUID позиции в корзине
+            user_id: UUID пользователя (для авторизованных)
+            session_id: ID гостевой сессии
+        
+        Returns:
+            CartItem: Позиция корзины
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 404, 500, 503)
+        """
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        response = self.session.get(
+            self._make_url(f'/api/v1/cart/items/{item_id}'),
+            headers=headers
+        )
+        return self._handle_response(response, CartItem)
+    
+    def update_cart_item(
+        self,
+        item_id: str,
+        quantity: int,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> CartMutationResponse:
+        """
+        Изменить количество товара в корзине
+        
+        Args:
+            item_id: UUID позиции в корзине
+            quantity: Новое количество (минимум 1)
+            user_id: UUID пользователя (для авторизованных)
+            session_id: ID гостевой сессии
+        
+        Returns:
+            CartMutationResponse: Результат обновления
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 403, 404, 410, 422, 500, 503)
+        """
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        response = self.session.put(
+            self._make_url(f'/api/v1/cart/items/{item_id}'),
+            headers=headers,
+            json={'quantity': quantity}
+        )
+        return self._handle_response(response, CartMutationResponse)
+    
+    def delete_cart_item(
+        self,
+        item_id: str,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> None:
+        """
+        Удалить позицию из корзины
+        
+        Args:
+            item_id: UUID позиции в корзине
+            user_id: UUID пользователя (для авторизованных)
+            session_id: ID гостевой сессии
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 404, 500)
+        """
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        response = self.session.delete(
+            self._make_url(f'/api/v1/cart/items/{item_id}'),
+            headers=headers
+        )
+        self._handle_response(response)
+    
+    def validate_cart(
+        self,
+        cart_item_ids: Optional[List[str]] = None
+    ) -> CartValidationResponse:
+        """
+        Валидация корзины перед оформлением заказа
+        
+        Args:
+            cart_item_ids: Список ID позиций для выборочной проверки
+        
+        Returns:
+            CartValidationResponse: Результат валидации
+        
+        Raises:
+            APIError: При ошибках API (400, 401, 502, 503, 504)
+        """
+        params = {}
+        if cart_item_ids:
+            params['cart_item_ids'] = cart_item_ids
+        
+        response = self.session.get(
+            self._make_url('/cart/validate'),
+            params=params
+        )
+        return self._handle_response(response, CartValidationResponse)
+    
+    # ========== ГЛАВНАЯ — БАННЕРЫ ==========
+    
+    def get_home_banners(self) -> BannerListResponse:
+        """
+        Получить активные баннеры для главной страницы
+        
+        Returns:
+            BannerListResponse: Список активных баннеров
+        
+        Raises:
+            APIError: При ошибках API (500)
+        """
+        response = self.session.get(
+            self._make_url('/api/v1/home/banners')
+        )
+        return self._handle_response(response, BannerListResponse)
+    
+    def send_banner_events(
+        self,
+        events: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Отправить события аналитики баннеров (показы/клики)
+        
+        Args:
+            events: Список событий. Каждое событие содержит:
+                   - banner_id: UUID баннера
+                   - event: "impression" или "click"
+                   - timestamp: datetime в ISO формате
+        
+        Raises:
+            APIError: При ошибках API (400, 500)
+        """
+        formatted_events = []
+        for event in events:
+            formatted_event = {
+                'banner_id': event['banner_id'],
+                'event': event['event'].value if isinstance(event['event'], BannerEventType) else event['event'],
+                'timestamp': event['timestamp'].isoformat() if isinstance(event['timestamp'], datetime) else event['timestamp']
+            }
+            formatted_events.append(formatted_event)
+        
+        response = self.session.post(
+            self._make_url('/api/v1/banner-events'),
+            json={'events': formatted_events}
+        )
+        self._handle_response(response)
+    
+    # ========== ПОДБОРКИ ==========
+    
+    def get_collections(
+        self,
+        limit: int = 10,
+        offset: int = 0
+    ) -> CollectionsResponse:
+        """
+        Получить список подборок для главной страницы
+        
+        Args:
+            limit: Количество подборок (1-50)
+            offset: Смещение для пагинации
+        
+        Returns:
+            CollectionsResponse: Список подборок
+        
+        Raises:
+            APIError: При ошибках API (400, 500)
+        """
+        response = self.session.get(
+            self._make_url('/api/v1/main/collections'),
+            params={'limit': limit, 'offset': offset}
+        )
+        return self._handle_response(response, CollectionsResponse)
+    
+    def get_collection_products(
+        self,
+        collection_id: str,
+        limit: int = 20,
+        offset: int = 0
+    ) -> CollectionProductsResponse:
+        """
+        Получение списка товаров из подборки
+        
+        Args:
+            collection_id: ID подборки
+            limit: Максимальное количество товаров (1-100)
+            offset: Смещение для пагинации
+        
+        Returns:
+            CollectionProductsResponse: Список товаров из подборки
+        
+        Raises:
+            APIError: При ошибках API (400, 404, 503)
+        """
+        response = self.session.get(
+            self._make_url(f'/api/v1/collections/{collection_id}/products'),
+            params={'limit': limit, 'offset': offset}
+        )
+        return self._handle_response(response, CollectionProductsResponse)
+    
+    # ========== РЕКОМЕНДАЦИИ ==========
+    
+    def get_also_bought(
+        self,
+        limit: int = 10
+    ) -> AlsoBoughtResponse:
+        """
+        Получить рекомендации "покупают вместе"
+        
+        Args:
+            limit: Максимальное количество рекомендаций (1-50)
+        
+        Returns:
+            AlsoBoughtResponse: Список рекомендованных товаров
+        
+        Raises:
+            APIError: При ошибках API (401, 409, 500, 503)
+        """
+        response = self.session.get(
+            self._make_url('/api/v1/cart/also_bought'),
+            params={'limit': limit}
+        )
+        return self._handle_response(response, AlsoBoughtResponse)
+    
+    def get_similar_products(
+        self,
+        product_id: str,
+        limit: int = 10
+    ) -> SimilarProductsResponse:
+        """
+        Получить похожие товары
+        
+        Args:
+            product_id: UUID исходного товара
+            limit: Максимальное количество товаров (1-50)
+        
+        Returns:
+            SimilarProductsResponse: Список похожих товаров
+        
+        Raises:
+            APIError: При ошибках API (400, 404, 503, 504)
+        """
+        response = self.session.get(
+            self._make_url(f'/api/v1/products/{product_id}/similar'),
+            params={'limit': limit}
+        )
+        return self._handle_response(response, SimilarProductsResponse)
+
+
+class APIError(Exception):
+    """Исключение для ошибок API"""
+    
+    def __init__(self, code: str, message: str, details: Optional[Dict] = None, status_code: int = 500):
+        self.code = code
+        self.message = message
+        self.details = details
+        self.status_code = status_code
+        super().__init__(f"[{code}] {message}")
+
+
+
+
+
+# examples.py
+"""
+Примеры использования NeoMarket API
+"""
+
+from datetime import datetime, timedelta
+from client import NeoMarketAPI, APIError
+from models import NotificationType, BannerEventType
+
+
+def main():
+    # Инициализация клиента с токеном авторизации
+    api = NeoMarketAPI(
+        base_url="https://api.neomarket.ru",
+        token="your-jwt-token-here"
+    )
+    
+    # Примеры для разных доменов
+    
+    # ===== ИЗБРАННОЕ =====
+    try:
+        # Получение списка избранного
+        favorites = api.get_favorites(limit=10)
+        print(f"Найдено избранных товаров: {favorites['total']}")
+        
+        # Добавление в избранное
+        result = api.add_to_favorites(
+            product_id="550e8400-e29b-41d4-a716-446655440000",
+            user_id="123e4567-e89b-12d3-a456-426614174000"
+        )
+        print(f"Добавление: {result['message']}")
+        
+        # Подписка на уведомления о товаре
+        subscription = api.subscribe_to_product(
+            product_id="550e8400-e29b-41d4-a716-446655440000",
+            notify_on=[NotificationType.IN_STOCK, NotificationType.PRICE_DOWN]
+        )
+        print(f"Подписка создана: {subscription['id']}")
+        
+        # Удаление из избранного
+        api.remove_from_favorites(
+            product_id="550e8400-e29b-41d4-a716-446655440000",
+            user_id="123e4567-e89b-12d3-a456-426614174000"
+        )
+        print("Товар удален из избранного")
+        
+    except APIError as e:
+        print(f"Ошибка при работе с избранным: {e}")
+    
+    # ===== КОРЗИНА =====
+    try:
+        # ID пользователя и сессии
+        user_id = "123e4567-e89b-12d3-a456-426614174000"
+        session_id = "sess-7f3d82ab-14bc-4d11-a902-31d29d9189af"
+        
+        # Добавление товара в корзину
+        add_result = api.add_cart_item(
+            sku_id="7c9e6679-7425-40de-944b-e07fc1f90ae7",
+            quantity=2,
+            user_id=user_id
+        )
+        print(f"Товар добавлен: {add_result['message']}")
+        print(f"Всего позиций в корзине: {add_result['summary']['total_items']}")
+        
+        # Просмотр корзины
+        cart = api.get_cart(user_id=user_id)
+        for item in cart['items']:
+            print(f"- {item['product_title']} ({item['sku_name']}) x{item['quantity']} = {item['line_total']} ₽")
+        
+        # Валидация корзины перед оформлением
+        validation = api.validate_cart()
+        if validation['is_valid']:
+            print("Корзина валидна, можно оформлять заказ")
+        else:
+            print("Проблемы в корзине:")
+            for issue in validation['issues']:
+                print(f"  - {issue['message']}")
+        
+        # Изменение количества
+        if cart['items']:
+            item_id = cart['items'][0]['item_id']
+            api.update_cart_item(
+                item_id=item_id,
+                quantity=5,
+                user_id=user_id
+            )
+            print(f"Количество товара обновлено")
+        
+        # Удаление позиции
+        if cart['items']:
+            item_id = cart['items'][0]['item_id']
+            api.delete_cart_item(item_id=item_id, user_id=user_id)
+            print(f"Позиция удалена")
+        
+        # Очистка корзины
+        api.clear_cart(user_id=user_id)
+        print("Корзина очищена")
+        
+    except APIError as e:
+        print(f"Ошибка при работе с корзиной: {e}")
+    
+    # ===== ГЛАВНАЯ СТРАНИЦА =====
+    try:
+        # Получение баннеров
+        banners = api.get_home_banners()
+        print(f"Найдено баннеров: {banners['total_count']}")
+        for banner in banners['items']:
+            print(f"- {banner['title']} (приоритет: {banner['priority']})")
+        
+        # Отправка событий аналитики
+        events = [
+            {
+                'banner_id': "550e8400-e29b-41d4-a716-446655440000",
+                'event': BannerEventType.IMPRESSION,
+                'timestamp': datetime.utcnow()
+            },
+            {
+                'banner_id': "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+                'event': BannerEventType.IMPRESSION,
+                'timestamp': datetime.utcnow() - timedelta(minutes=1)
+            }
+        ]
+        api.send_banner_events(events)
+        print("События аналитики отправлены")
+        
+        # Получение подборок
+        collections = api.get_collections(limit=5)
+        print(f"Найдено подборок: {collections['metadata']['total_count']}")
+        for collection in collections['collections']:
+            print(f"- {collection['title']} (c {collection['start_date']})")
+        
+        # Получение товаров из подборки
+        if collections['collections']:
+            collection_id = collections['collections'][0]['id']
+            products = api.get_collection_products(
+                collection_id=collection_id,
+                limit=3
+            )
+            print(f"Товары в подборке '{products['collection_title']}': {products['total_products']} всего")
+            
+    except APIError as e:
+        print(f"Ошибка при работе с главной страницей: {e}")
+    
+    # ===== РЕКОМЕНДАЦИИ =====
+    try:
+        # Рекомендации "покупают вместе"
+        also_bought = api.get_also_bought(limit=5)
+        print(f"Рекомендации на основе корзины: {also_bought['recommended_product_ids']}")
+        
+        # Похожие товары
+        similar = api.get_similar_products(
+            product_id="550e8400-e29b-41d4-a716-446655440000",
+            limit=3
+        )
+        print(f"Найдено похожих товаров: {similar['total']}")
+        
+    except APIError as e:
+        if e.code == "EMPTY_CART":
+            print("Корзина пуста, рекомендации недоступны")
+        else:
+            print(f"Ошибка при получении рекомендаций: {e}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+# async_client.py (опционально - асинхронный клиент)
+"""
+Асинхронный клиент для NeoMarket API с использованием httpx
+Требует установки: pip install httpx
+"""
+
+import httpx
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from models import (
+    FavoritesResponse, FavoriteMutationResponse, SubscribeRequest,
+    SubscriptionResponse, CartResponse, AddCartItemRequest,
+    UpdateCartItemRequest, CartMutationResponse, CartValidationResponse,
+    BannerListResponse, CollectionsResponse, CollectionProductsResponse,
+    AlsoBoughtResponse, SimilarProductsResponse, NotificationType,
+    ErrorResponse, BannerEventType
+)
+from client import APIError
+
+
+class AsyncNeoMarketAPI:
+    """
+    Асинхронный клиент для NeoMarket B2C API
+    """
+    
+    def __init__(self, base_url: str, token: Optional[str] = None):
+        self.base_url = base_url.rstrip('/')
+        self.token = token
+        self._client = None
+    
+    async def __aenter__(self):
+        headers = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+        
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers=headers,
+            timeout=30.0
+        )
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._client:
+            await self._client.aclose()
+    
+    async def _request(self, method: str, path: str, **kwargs):
+        """Выполняет HTTP запрос"""
+        response = await self._client.request(method, path, **kwargs)
+        
+        if response.status_code == 204:
+            return None
+        
+        if not response.is_success:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {}
+            
+            raise APIError(
+                code=error_data.get('code', 'UNKNOWN_ERROR'),
+                message=error_data.get('message', 'Unknown error'),
+                details=error_data.get('details'),
+                status_code=response.status_code
+            )
+        
+        if response.content:
+            return response.json()
+        return None
+    
+    # ===== ИЗБРАННОЕ =====
+    
+    async def get_favorites(self, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
+        """Получение списка избранных товаров"""
+        return await self._request(
+            'GET',
+            '/api/v1/favorites',
+            params={'limit': limit, 'offset': offset}
+        )
+    
+    async def add_to_favorites(self, product_id: str, user_id: str) -> Dict[str, Any]:
+        """Добавление товара в избранное"""
+        return await self._request(
+            'POST',
+            f'/api/v1/favorites/{product_id}',
+            params={'user_id': user_id}
+        )
+    
+    async def remove_from_favorites(self, product_id: str, user_id: str) -> None:
+        """Удаление товара из избранного"""
+        await self._request(
+            'DELETE',
+            f'/api/v1/favorites/{product_id}',
+            params={'user_id': user_id}
+        )
+    
+    async def subscribe_to_product(
+        self,
+        product_id: str,
+        notify_on: List[NotificationType]
+    ) -> Dict[str, Any]:
+        """Подписка на уведомления о товаре"""
+        return await self._request(
+            'POST',
+            f'/api/v1/favorites/{product_id}/subscribe',
+            json={'notify_on': [n.value for n in notify_on]}
+        )
+    
+    # ===== КОРЗИНА =====
+    
+    async def get_cart(
+        self,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Просмотр корзины"""
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        return await self._request('GET', '/api/v1/cart', headers=headers)
+    
+    async def clear_cart(
+        self,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> None:
+        """Очистить корзину"""
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        await self._request('DELETE', '/api/v1/cart', headers=headers)
+    
+    async def add_cart_item(
+        self,
+        sku_id: str,
+        quantity: int,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Добавить товар в корзину"""
+        headers = {}
+        if user_id:
+            headers['X-User-Id'] = user_id
+        if session_id:
+            headers['X-Session-Id'] = session_id
+        
+        return await self._request(
+            'POST',
+            '/api/v1/cart/items',
+            headers=headers,
+            json={'sku_id': sku_id, 'quantity': quantity}
+        )
+    
+    async def validate_cart(
+        self,
+        cart_item_ids: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Валидация корзины"""
+        params = {}
+        if cart_item_ids:
+            params['cart_item_ids'] = cart_item_ids
+        
+        return await self._request('GET', '/cart/validate', params=params)
+    
+    # ===== ГЛАВНАЯ СТРАНИЦА =====
+    
+    async def get_home_banners(self) -> Dict[str, Any]:
+        """Получить активные баннеры"""
+        return await self._request('GET', '/api/v1/home/banners')
+    
+    async def send_banner_events(self, events: List[Dict[str, Any]]) -> None:
+        """Отправить события аналитики баннеров"""
+        await self._request('POST', '/api/v1/banner-events', json={'events': events})
+    
+    async def get_collections(self, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+        """Получить список подборок"""
+        return await self._request(
+            'GET',
+            '/api/v1/main/collections',
+            params={'limit': limit, 'offset': offset}
+        )
+    
+    # ===== РЕКОМЕНДАЦИИ =====
+    
+    async def get_also_bought(self, limit: int = 10) -> Dict[str, Any]:
+        """Рекомендации 'покупают вместе'"""
+        return await self._request(
+            'GET',
+            '/api/v1/cart/also_bought',
+            params={'limit': limit}
+        )
+    
+    async def get_similar_products(self, product_id: str, limit: int = 10) -> Dict[str, Any]:
+        """Похожие товары"""
+        return await self._request(
+            'GET',
+            f'/api/v1/products/{product_id}/similar',
+            params={'limit': limit}
+        )
+
+
+# Пример использования асинхронного клиента
+async def async_example():
+    async with AsyncNeoMarketAPI(
+        base_url="https://api.neomarket.ru",
+        token="your-jwt-token"
+    ) as api:
+        try:
+            # Получение баннеров
+            banners = await api.get_home_banners()
+            print(f"Баннеров: {banners['total_count']}")
+            
+            # Получение корзины
+            cart = await api.get_cart(user_id="123e4567-e89b-12d3-a456-426614174000")
+            print(f"Позиций в корзине: {cart['summary']['total_items']}")
+            
+        except APIError as e:
+            print(f"Ошибка: {e}")
+
+
+
+
+
+# requirements.txt
+"""
+requests>=2.31.0
+httpx>=0.24.0  # для асинхронного клиента
+python-dateutil>=2.8.2  # для работы с датами
+"""
