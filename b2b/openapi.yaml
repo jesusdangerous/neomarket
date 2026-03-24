@@ -1,147 +1,499 @@
 openapi: 3.0.3
 info:
   title: NeoMarket B2B (Seller Cabinet)
-  version: "1.0"
+  version: "1.1.0"
   description: |
-    Кабинет продавца. Создание товаров, SKU, управление ценами, накладные.
-    Связи с Moderation и B2C — частично восстановлены, детали проектируются.
+    Контракт кабинета продавца: управление товарами, SKU и накладными.
+servers:
+  - url: https://api.neomarket.local
+
+tags:
+  - name: Products
+  - name: SKU
+  - name: Invoices
+
+security:
+  - BearerAuth: []
 
 paths:
   /api/v1/products:
-    post:
-      summary: Создать товар
-      tags: [Products]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              # Формат тела запроса — проектируется
-      responses:
-        "201":
-          description: Товар создан
-
-  /api/v1/products/{id}:
     get:
-      summary: Получить товар со всеми SKU
       tags: [Products]
+      summary: Получить список товаров продавца
       parameters:
-        - name: id
-          in: path
-          required: true
+        - name: limit
+          in: query
+          required: false
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: category_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [CREATED, ON_MODERATION, MODERATED, BLOCKED]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
       responses:
         "200":
-          description: Товар с SKU, характеристиками и фото
+          description: Список товаров
           content:
             application/json:
               schema:
-                $ref: "../shared/schemas.yaml#/components/schemas/Product"
-              example:
-                id: 42
-                title: "iPhone 15 Pro Max"
-                description: "Флагман Apple..."
-                status: "MODERATED"
-                category:
-                  id: 3
-                  name: "Смартфоны"
-                images:
-                  - url: "/s3/iphone15-1.jpg"
-                    ordering: 0
-                characteristics:
-                  - name: "Бренд"
-                    value: "Apple"
-                skus:
-                  - id: 101
-                    name: "256GB Black"
-                    price: 12999000
-                    activeQuantity: 5
-                    characteristics:
-                      - name: "Цвет"
-                        value: "Чёрный"
-                      - name: "Объём памяти"
-                        value: "256 ГБ"
-                  - id: 102
-                    name: "256GB White"
-                    price: 12999000
-                    activeQuantity: 0
-        "404":
-          description: Товар не найден
-
-    put:
-      summary: Изменить товар
+                $ref: "#/components/schemas/ProductListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
       tags: [Products]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+      summary: Создать товар
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: Товар создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/products/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ProductId"
+    get:
+      tags: [Products]
+      summary: Получить товар со всеми SKU
       responses:
         "200":
-          description: Товар обновлён
+          description: Товар найден
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Products]
+      summary: Изменить товар
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+      responses:
+        "200":
+          description: Товар обновлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/skus:
     post:
-      summary: Создать SKU
       tags: [SKU]
+      summary: Создать SKU
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/CreateSkuRequest"
       responses:
         "201":
           description: SKU создан
-
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sku"
+        "400":
+          $ref: "#/components/responses/BadRequest"
     put:
-      summary: Изменить SKU
       tags: [SKU]
+      summary: Изменить SKU
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/UpdateSkuRequest"
       responses:
         "200":
-          description: SKU обновлён
+          description: SKU обновлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sku"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/invoices:
     post:
-      summary: Создать накладную
       tags: [Invoices]
+      summary: Создать накладную
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/CreateInvoiceRequest"
       responses:
         "201":
           description: Накладная создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /api/v1/invoices/accept:
     post:
-      summary: Принять накладную (склад)
       tags: [Invoices]
+      summary: Принять накладную (склад)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/AcceptInvoiceRequest"
       responses:
         "200":
           description: Накладная принята, остатки обновлены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  # ??? — Эндпоинты для B2C (каталог, резервирование) — проектируются
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Невалидный запрос
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Требуется авторизация
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Сущность не найдена
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: NOT_FOUND
+        message:
+          type: string
+          example: Resource not found
+
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    Image:
+      type: object
+      required: [url, ordering]
+      properties:
+        url:
+          type: string
+        ordering:
+          type: integer
+          minimum: 0
+
+    Characteristic:
+      type: object
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+
+    Sku:
+      type: object
+      required: [id, product_id, name, price, active_quantity]
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+          description: Цена в копейках
+        active_quantity:
+          type: integer
+          minimum: 0
+        characteristics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Characteristic"
+
+    Product:
+      type: object
+      required: [id, title, description, status, category, images, characteristics, skus]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [CREATED, ON_MODERATION, MODERATED, BLOCKED]
+        category:
+          $ref: "#/components/schemas/Category"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/Image"
+        characteristics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Characteristic"
+        skus:
+          type: array
+          items:
+            $ref: "#/components/schemas/Sku"
+
+    ProductListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+
+    CreateProductRequest:
+      type: object
+      required: [title, description, category_id]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category_id:
+          type: string
+          format: uuid
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/Image"
+        characteristics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Characteristic"
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [CREATED, ON_MODERATION, MODERATED, BLOCKED]
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/Image"
+        characteristics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Characteristic"
+
+    CreateSkuRequest:
+      type: object
+      required: [product_id, name, price, active_quantity]
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        active_quantity:
+          type: integer
+          minimum: 0
+        characteristics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Characteristic"
+
+    UpdateSkuRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        active_quantity:
+          type: integer
+          minimum: 0
+        characteristics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Characteristic"
+
+    InvoiceItem:
+      type: object
+      required: [sku_id, quantity]
+      properties:
+        sku_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+
+    CreateInvoiceRequest:
+      type: object
+      required: [seller_id, warehouse_id, items]
+      properties:
+        seller_id:
+          type: string
+          format: uuid
+        warehouse_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+
+    AcceptInvoiceRequest:
+      type: object
+      required: [invoice_id]
+      properties:
+        invoice_id:
+          type: string
+          format: uuid
+
+    Invoice:
+      type: object
+      required: [id, seller_id, warehouse_id, status, items, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        seller_id:
+          type: string
+          format: uuid
+        warehouse_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [CREATED, ACCEPTED, REJECTED]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+        created_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true

@@ -75,7 +75,7 @@ paths:
                 id: "660e8400-e29b-41d4-a716-446655440001"
                 name: "iPhone 14 Pro 128GB Silver"
                 price: 999.99
-                quantity: 15
+                active_quantity: 15
                 characteristics:
                   - name: "COLOR"
                     value: "Silver"
@@ -241,7 +241,7 @@ paths:
                   - id: "660e8400-e29b-41d4-a716-446655440001"
                     name: "iPhone 14 Pro 128GB Silver"
                     price: 999.99
-                    quantity: 15
+                    active_quantity: 15
                     characteristics:
                       - name: "COLOR"
                         value: "Silver"
@@ -896,7 +896,7 @@ components:
           type: number
           description: Цена
           example: 999.99
-        quantity:
+        active_quantity:
           type: integer
           description: Количество на складе
           example: 15
@@ -913,13 +913,13 @@ components:
         - id
         - name
         - price
-        - quantity
+        - active_quantity
         - characteristics
       example:
         id: "660e8400-e29b-41d4-a716-446655440001"
         name: "iPhone 14 Pro 128GB Silver"
         price: 999.99
-        quantity: 15
+        active_quantity: 15
         characteristics:
           - name: "COLOR"
             value: "Silver"
@@ -969,7 +969,7 @@ components:
 
     ProductStatus:
       type: string
-      enum: [CREATED, ON_MODERATED, MODERATED, BLOCKED]
+      enum: [CREATED, ON_MODERATION, MODERATED, BLOCKED]
       description: Статус публикации товара
       example: "CREATED"
 
@@ -1110,6 +1110,8 @@ components:
 
     ErrorResponse:
       type: object
+      required:
+        - message
       properties:
         message:
           type: string

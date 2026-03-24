@@ -165,14 +165,6 @@ paths:
             type: string
             format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
-        - name: user_id
-          in: query
-          required: true
-          description: Идентификатор пользователя (UUID)
-          schema:
-            type: string
-            format: uuid
-            example: "123e4567-e89b-12d3-a456-426614174000"
 
       responses:
         "201":
@@ -256,14 +248,6 @@ paths:
             type: string
             format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
-        - name: user_id
-          in: query
-          required: true
-          description: Идентификатор пользователя (UUID)
-          schema:
-            type: string
-            format: uuid
-            example: "123e4567-e89b-12d3-a456-426614174000"
 
       responses:
         "204":
@@ -467,7 +451,7 @@ paths:
                         image_url: "/s3/iphone15-1.jpg"
                         unit_price: 12999000
                         quantity: 1
-                        available_stock: 5
+                        active_quantity: 5
                         line_total: 12999000
                         available: true
                         unavailable_reason: null
@@ -479,7 +463,7 @@ paths:
                         image_url: "/s3/case-1.jpg"
                         unit_price: 299000
                         quantity: 2
-                        available_stock: 2
+                        active_quantity: 2
                         line_total: 598000
                         available: true
                         unavailable_reason: null
@@ -491,7 +475,7 @@ paths:
                         image_url: "/s3/nike-1.jpg"
                         unit_price: 899000
                         quantity: 1
-                        available_stock: 0
+                        active_quantity: 0
                         line_total: 0
                         available: false
                         unavailable_reason: "OUT_OF_STOCK"
@@ -1183,21 +1167,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ErrorResponse"
 
         "404":
           description: Подборка не найдена
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ErrorResponse"
 
         "503":
           description: B2B сервис временно недоступен
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/cart/also_bought:
     get:
@@ -1728,7 +1712,7 @@ components:
         - sku_name
         - unit_price
         - quantity
-        - available_stock
+        - active_quantity
         - line_total
         - available
       properties:
@@ -1769,7 +1753,7 @@ components:
           minimum: 1
           description: Количество в корзине
           example: 1
-        available_stock:
+        active_quantity:
           type: integer
           minimum: 0
           description: Текущий остаток на складе
