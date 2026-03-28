@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoMarket Storefront + Moderation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-wave"></div>
+  <div class="bg-glow bg-glow-a"></div>
+  <div class="bg-glow bg-glow-b"></div>
+
+  <header class="topbar">
+    <div class="brand-wrap">
+      <div class="brand-mark">NM</div>
+      <div class="brand-copy">
+        <h1>NeoMarket</h1>
+        <p>Главная витрина, подборки, корзина и moderation-кабинет</p>
+      </div>
+    </div>
+    <div class="identity-grid card">
+      <div class="field slim">
+        <label for="userIdInput">Покупатель UUID</label>
+        <input id="userIdInput" type="text" />
+      </div>
+      <div class="field slim">
+        <label for="moderatorTokenInput">Moderator JWT (опционально в dev)</label>
+        <input id="moderatorTokenInput" type="text" placeholder="Bearer token без префикса" />
+      </div>
+      <button id="refreshAll" class="btn btn-primary">Обновить всё</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="home">Главная</button>
+    <button class="tab" data-tab="store">Каталог</button>
+    <button class="tab" data-tab="moderation">Moderation</button>
+  </nav>
+
+  <main>
+    <section id="home" class="panel active">
+      <div class="home-layout">
+        <section class="card hero-banner" id="heroBanners"></section>
+
+        <section class="card">
+          <div class="panel-head">
+            <h2>Подборки</h2>
+            <span class="muted">Собраны с главной страницы</span>
+          </div>
+          <div id="collectionsGrid" class="collections-grid"></div>
+        </section>
+
+        <section class="card">
+          <div class="panel-head">
+            <h2>Рекомендуем</h2>
+            <button id="reloadHomeProducts" class="btn btn-ghost">Обновить</button>
+          </div>
+          <div id="homeProductsGrid" class="products-grid"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="store" class="panel">
+      <div class="store-layout">
+        <aside class="card sidebar">
+          <h2>Фильтры каталога</h2>
+          <div class="field">
+            <label for="searchInput">Поиск</label>
+            <input id="searchInput" type="text" placeholder="Например: наушники" />
+          </div>
+          <div class="field">
+            <label for="categorySelect">Категория</label>
+            <select id="categorySelect">
+              <option value="">Все категории</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sortSelect">Сортировка</label>
+            <select id="sortSelect">
+              <option value="date_desc">Новые</option>
+              <option value="price_asc">Цена по возрастанию</option>
+              <option value="price_desc">Цена по убыванию</option>
+            </select>
+          </div>
+          <button id="refreshProducts" class="btn btn-primary">Обновить каталог</button>
+        </aside>
+
+        <section class="catalog-area">
+          <div class="catalog-head">
+            <h2>Товары</h2>
+            <span id="productsMeta" class="muted"></span>
+          </div>
+          <div id="productsGrid" class="products-grid"></div>
+        </section>
+
+        <aside class="card cart-panel">
+          <div class="cart-head">
+            <h2>Корзина</h2>
+            <button id="clearCart" class="btn btn-ghost">Очистить</button>
+          </div>
+          <div id="cartItems" class="cart-items"></div>
+          <div id="cartSummary" class="cart-summary"></div>
+          <button id="checkoutBtn" class="btn btn-primary">Оформить заказ</button>
+          <p id="checkoutMsg" class="muted"></p>
+
+          <div class="divider"></div>
+          <h3 class="subhead">Избранное</h3>
+          <div id="favoritesList" class="favorites-list"></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="moderation" class="panel">
+      <div class="moderation-layout">
+        <div class="card moderation-main">
+          <div class="panel-head">
+            <h2>Очередь модерации</h2>
+            <button id="getNextCard" class="btn btn-primary">Взять следующую карточку</button>
+          </div>
+          <div id="moderationCard" class="moderation-card muted">Очередь пока не загружена</div>
+          <div class="decision-grid">
+            <button id="approveBtn" class="btn btn-success" disabled>Одобрить</button>
+            <button id="declineBtn" class="btn btn-danger" disabled>Отклонить</button>
+          </div>
+          <div class="field">
+            <label for="declineReason">Причина блокировки</label>
+            <select id="declineReason"></select>
+          </div>
+          <div class="field">
+            <label for="declineComment">Комментарий продавцу</label>
+            <textarea id="declineComment" rows="3" placeholder="Что нужно исправить"></textarea>
+          </div>
+          <p id="moderationMsg" class="muted"></p>
+        </div>
+
+        <div class="card moderation-side">
+          <h2>Права и поток</h2>
+          <ul class="info-list">
+            <li>Enqueue из UI удален: карточки приходят из B2B через Redis Stream.</li>
+            <li>Decision endpoint-ы требуют роль MODERATOR или ADMIN.</li>
+            <li>JWT проходит проверку подписи по алгоритму сервиса.</li>
+          </ul>
+          <p class="muted">В dev-режиме можно использовать X-Moderator-Id без JWT, если токен пока не выдан.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <template id="productTemplate">
+    <article class="product-card">
+      <div class="product-top">
+        <span class="badge">Neo Pick</span>
+        <button class="btn btn-ghost favorite-btn">В избранное</button>
+      </div>
+      <h3 class="product-title"></h3>
+      <p class="product-price"></p>
+      <p class="product-meta"></p>
+      <select class="sku-select"></select>
+      <div class="product-actions">
+        <button class="btn btn-primary add-cart-btn">В корзину</button>
+        <button class="btn btn-ghost details-btn">Подробнее</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js" type="module"></script>
+</body>
+</html>

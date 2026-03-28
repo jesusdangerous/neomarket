@@ -1,0 +1,193 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: neomarket-postgres
+    environment:
+      POSTGRES_USER: neomarket
+      POSTGRES_PASSWORD: neomarket
+      POSTGRES_DB: neomarket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/init-multiple-dbs.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neomarket"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: neomarket-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  catalog:
+    build:
+      context: ./services/catalog
+    container_name: neomarket-catalog
+    command: sh -c "python manage.py migrate && python manage.py seed_demo_catalog && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: catalog_service.settings
+      SECRET_KEY: catalog-dev-secret
+      DEBUG: "1"
+      DB_NAME: catalog_db
+      DB_USER: neomarket
+      DB_PASSWORD: neomarket
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./services/catalog:/app
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  cart:
+    build:
+      context: ./services/cart
+    container_name: neomarket-cart
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: cart_service.settings
+      SECRET_KEY: cart-dev-secret
+      DEBUG: "1"
+      DB_NAME: cart_db
+      DB_USER: neomarket
+      DB_PASSWORD: neomarket
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CATALOG_PRODUCTS_URL: http://catalog:8000/api/v1/products
+      CATALOG_TIMEOUT: "3.0"
+      CELERY_BROKER_URL: redis://redis:6379/2
+      CELERY_RESULT_BACKEND: redis://redis:6379/3
+    volumes:
+      - ./services/cart:/app
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  orders:
+    build:
+      context: ./services/orders
+    container_name: neomarket-orders
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: orders_service.settings
+      SECRET_KEY: orders-dev-secret
+      DEBUG: "1"
+      DB_NAME: orders_db
+      DB_USER: neomarket
+      DB_PASSWORD: neomarket
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/4
+      CELERY_RESULT_BACKEND: redis://redis:6379/5
+      CART_VALIDATE_URL: http://cart:8000/api/v1/cart/validate
+      CART_VALIDATE_TIMEOUT: "3.0"
+    volumes:
+      - ./services/orders:/app
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  moderation:
+    build:
+      context: ./services/moderation
+    container_name: neomarket-moderation
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: moderation_service.settings
+      SECRET_KEY: moderation-dev-secret
+      DEBUG: "1"
+      DB_NAME: moderation_db
+      DB_USER: neomarket
+      DB_PASSWORD: neomarket
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      B2B_PRODUCT_URL_TEMPLATE: ""
+      B2B_REQUEST_TIMEOUT: "3.0"
+      MODERATION_EVENTS_STREAM: b2b.product.events
+      MODERATION_EVENTS_GROUP: moderation
+      MODERATION_EVENTS_CONSUMER: moderation-api
+      JWT_ALGORITHM: HS256
+      JWT_SECRET: moderation-dev-jwt-secret
+    volumes:
+      - ./services/moderation:/app
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  moderation-worker:
+    build:
+      context: ./services/moderation
+    container_name: neomarket-moderation-worker
+    command: python manage.py consume_b2b_events
+    environment:
+      DJANGO_SETTINGS_MODULE: moderation_service.settings
+      SECRET_KEY: moderation-dev-secret
+      DEBUG: "1"
+      DB_NAME: moderation_db
+      DB_USER: neomarket
+      DB_PASSWORD: neomarket
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      B2B_PRODUCT_URL_TEMPLATE: ""
+      B2B_REQUEST_TIMEOUT: "3.0"
+      MODERATION_EVENTS_STREAM: b2b.product.events
+      MODERATION_EVENTS_GROUP: moderation
+      MODERATION_EVENTS_CONSUMER: moderation-worker
+      JWT_ALGORITHM: HS256
+      JWT_SECRET: moderation-dev-jwt-secret
+    volumes:
+      - ./services/moderation:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: neomarket-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - catalog
+      - cart
+      - orders
+      - moderation
+      - moderation-worker
+
+volumes:
+  postgres_data:
+
